@@ -1,0 +1,511 @@
+---
+title: "467 TERM PROJECT"
+author: "Ekinsu ÇİÇEK, Mehmet Ali ERKAN"
+date: "2023-01-17"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(bestNormalize)
+library(dplyr)
+library(MVN)
+library(remotes)
+library(caret)
+library(car)
+library(MVN)
+library(dplyr)
+library(psych)
+library(ICSNP)
+library(rstatix)
+library(gridExtra)
+library(ggplot2)
+```
+
+## Reading the Data and Arranging of data
+
+```{r}
+data <- read.csv("dataR2.csv",header = TRUE)
+head(data,5)
+dim(data)
+str(data)
+anyNA(data)
+##data <- data %>% select_if(., is.numeric)
+summary(data)
+```
+## Summary and correlation matrix of data
+
+```{r}
+summary(data)
+colMeans(data)# obtain mean vector
+var(data)# obtain var-cov matrix
+cor(data)# obtain cor matrix
+```
+
+## Plots
+
+## The Scatter Plot of Insulin, Homa, Leptin and Glucose
+
+```{r}
+ggplot(data,aes(x=Insulin, y = HOMA, size= Leptin, colour= Glucose))+ geom_point()+labs(title = "The Scatter Plot of Insulin, Homa, Leptin and Glucose")
+```
+
+
+
+```{r}
+library(scatterplot3d)
+div<-data[,c("Glucose", "BMI","Classification")]
+s3d <- scatterplot3d(div, type="h", highlight.3d=TRUE,
+                     angle=55, scale.y=0.7, pch=16, main = "Relationship between Glucose - BMI - Classification")
+```
+
+## Outlier Detection
+
+### Mahalanobis distance
+
+```{r}
+result <- mvn(data = data, mvnTest = "royston", multivariateOutlierMethod = "quan")
+```
+
+We observed that there are 39 outlier in the dataset.
+
+### Adjusted Mahalanobis distance
+
+```{r}
+result <- mvn(data = data, mvnTest = "royston", multivariateOutlierMethod = "adj")
+```
+
+We observerd that there are 36 outliers in the data.
+
+
+## Checking Normality
+
+### Multivariate Normality
+
+```{r}
+result <- mvn(data = data, mvnTest = "royston")
+result$multivariateNormality
+```
+
+H0 : The data follows normal distribution.
+H1: The data does not follow normal distribution.
+
+Since p-value is smaller than the significance level, we reject the null hypothesis.
+Data doesn't follow a normal distribution.
+
+### Univariate Normality
+
+```{r}
+result <- mvn(data = data, mvnTest = "royston", univariatePlot = "histogram")
+result$univariateNormality
+```
+
+As seen in the p-values of the variables, none of them normal.
+
+## Normalizing Variables
+
+According to the result, we choose the best method.
+
+```{r}
+#Normalize Age 
+bestNormalize(data$Age)
+data$Age <- orderNorm(data$Age)$x.t
+
+#Normalize BMI
+bestNormalize(data$BMI)
+data$BMI <- orderNorm(data$BMI)$x.t
+
+#Normalize Glucose
+bestNormalize(data$Glucose)
+data$Glucose <- orderNorm(data$Glucose)$x.t
+
+#Normalize Insulin
+bestNormalize(data$Insulin)
+data$Insulin <- boxcox(data$Insulin)$x.t
+
+#Normalize HOMA
+bestNormalize(data$HOMA)
+data$HOMA <- boxcox(data$HOMA)$x.t
+
+#Normalize Leptin
+bestNormalize(data$Leptin)
+data$Leptin <- yeojohnson(data$Leptin)$x.t
+
+#Normalize Adiponectin
+bestNormalize(data$Adiponectin)
+data$Adiponectin <- arcsinh_x(data$Adiponectin)$x.t
+
+#Normalize Resistin
+bestNormalize(data$Resistin)
+data$Resistin <- log_x(data$Resistin)$x.t
+
+#Normalize MCP.1
+bestNormalize(data$MCP.1)
+data$MCP.1 <- yeojohnson(data$MCP.1)$x.t
+```
+
+## Checking the Normality after Normalization
+
+### Multivariate Normality
+
+```{r}
+result <- mvn(data = data, mvnTest = "royston")
+result$multivariateNormality
+```
+
+H0 : The data follows normal distribution.
+H1: The data does not follow normal distribution.
+
+Since p-value is smaller than the significance level, we reject the null hypothesis.
+Data doesn't follow normal distribution.
+
+### Univariaye Normality
+
+```{r}
+result <- mvn(data = data, mvnTest = "royston", univariatePlot = "histogram")
+result$univariateNormality
+```
+
+After, normalization, univariate normality is satisfied.
+
+## Principal Component Analysis
+
+### Checking the Dimension
+```{r}
+dim(data)
+str(data)
+```
+
+There are 116 observation and 10 variables. Our dimensions are 116 and 10.
+
+### Observing Factor Variable 
+
+```{r,warning=FALSE}
+scatterplotMatrix(data,diagonal = "histogram")
+```
+The classification variable is a a factor. So, continue the process by omitting
+it for a while.
+
+### Checking Correlation of the Variables
+
+```{r warning=FALSE}
+grDevices::colors
+ndata <-data[,-10] ##removing factor variable
+dim(ndata) #our dimensions are now 116 and 9.
+scatterplotMatrix(ndata, diagonal="histogram",col="sienna2")
+```
+
+```{r}
+library(GGally)
+ggcorr(ndata, method = c("everything", "pearson"))
+```
+From both plots we can observe that correlation of the variables are good for
+PCA. Scale of the variables are different(from the scatter plot), before PCA,
+we should scale them.
+
+### Scaling
+```{r}
+n2data<-scale(ndata)
+head(n2data,2) #first two row of the scaled data.
+```
+After scaling we got the above results.
+
+#### Checking covariance and correlation
+
+```{r}
+cor(n2data)
+library(GGally)
+ggcorr(n2data, method = c("everything", "pearson"))
+```
+After scaling we again check the correlation of the variables. Since HOMA and
+Insulin will be our response, we remove them for now. We are gonna use them during
+principal component regression.
+
+### Obtaining Principle Components
+```{r}
+n3data <- n2data[,-c(4,5)] ##removing response
+pca1 <- prcomp(n3data)
+summary(pca1)
+```
+we can see that the first four components nearly explain the 80% variability in data.
+
+#### Obtaining Eigenvalues
+```{r}
+pca1$sdev
+```
+
+First four eigenvalues are nearly 1 or above 1.
+
+```{r}
+library(factoextra) #produce ggplot graphs
+fviz_eig(pca1,addlabels=TRUE,col="sienna2") #represent the proportion values
+```
+
+Four component seems okay from the scree plot. Also, we observed that four components
+explain the 78.49% variability in data. We continue with the first four components.
+
+#### Extracting first 4 components
+
+```{r}
+pca<-pca1$x[,1:4]
+head(pca)
+```
+
+##### linearity of the components
+```{r}
+res1 <- cor(pca, method="pearson")
+corrplot::corrplot(res1, method= "color", order = "hclust")
+ggcorr(res1, method = c("everything", "pearson"))
+```
+All components are linearly independent since their correlations are 0.
+
+#### Interpretation of the Components
+```{r}
+cor(n3data,pca)
+```
+The first component positively correlated with every variable except Adiponectin.
+The component most correlated with BMI.
+The second component positively correlated with every variable except
+Resistin and MCP.1. The component most correlated with MCP.1.
+The third component positively correlated with every variable except
+BMI,Leptin,Adiponectin. The component most correlated with MCP.1.
+The fourth component positively correlated with every variable except
+Age,BMI,Leptin. The component most correlated with Glucose.
+....
+##### Loading Plots
+```{r}
+a <- fviz_pca_var(pca1,axes = c(1, 2))
+b <- fviz_pca_var(pca1,axes = c(2, 3))
+c <- fviz_pca_var(pca1,axes = c(3, 4))
+gridExtra::grid.arrange(a,b,c, ncol=2)
+```
+Leptin,BMI,Resistin,MCP.1 influence PC1 while Adiponectin influence PC2.
+Age,Glucose,Leptin,BMI,Adiponections influence PC2 while MCP.1 and Resistin
+strongly influence PC3.
+Age influence PC3 while Leptin,Adiponectin, BMI have more say in PC4.
+
+## Factor Analysis
+```{r}
+factanal(n2data, factors = 1, method ="mle")$PVAL
+```
+Since p value is less than 0.05, we reject H0.
+```{r}
+factanal(n2data, factors = 2, method ="mle")$PVAL
+```
+Since p value is less than 0.05, we reject H0.
+
+```{r}
+factanal(n2data, factors = 3, method ="mle")$PVAL
+```
+
+Since p value is less than 0.05, we reject H0.
+
+```{r}
+factanal(n2data, factors = 4, method ="mle")$PVAL
+```
+
+Since p value is less than 0.05, we reject H0.
+
+```{r}
+factanal(n2data, factors = 5, method ="mle")$PVAL
+```
+Since p value is less than 0.05, we reject H0.
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+#factanal(n2data, factors = 6, method ="mle")$PVAL
+
+#Error in factanal(n2data, factors = 6, method = "mle") :
+#6 factors are too many for 9 variables
+```
+
+We got the errors that states "6 factors are too many for 9 variables."
+
+The data set does not suitable for the factor analysis, since we try the
+every possible number of factors.
+
+```
+Research Question 1:
+Is there a relationship between Insulin and HOMA level on blood and  AGE, BMI 
+and other hormones?
+```
+
+## Principal Component Regression 1
+```{r}
+ols.data <- data.frame(Insulin=data[,4],HOMA=data[,5],pca) #combining PC and response
+lmodel <- lm(cbind(Insulin,HOMA) ~ ., data = ols.data)
+summary(lmodel)
+```
+Both model are significant since their p-values are smaller than 0.05.
+In the first model, coefficient of intercept and PC3 are insignificant. In the
+second model, again intercept and PC3 are insignificant. R-Squared values of both model
+are very small. Components are not good for explaining the response variables.
+
+
+
+```{r}
+mean((ols.data$Insulin - predict(lmodel))^2)
+mean((ols.data$HOMA - predict(lmodel))^2)
+```
+Also, MSE of the both model are pretty high, again indication of not being 
+a good model.
+
+### Multivariate Multiple Linear Regression 1
+
+```{r}
+mlm1 <- lm(cbind(Insulin, HOMA) ~ .-Classification, data = data)
+summary(mlm1)
+```
+Both models are significant since their p-value is smaller than the significance level.
+Also, all the coefficients in the models are significant except intercepts. However,
+R-Squared values are very low, these variables are not good at explaining the Insulin and HOMA 
+level in the blood.
+
+```{r}
+mean((ols.data$Insulin - predict(mlm1))^2)
+mean((ols.data$HOMA - predict(mlm1))^2)
+```
+
+From the MSE value of the principal component regression and multivariate regression,
+we can say that multivariate regression model is more preferable since its MSE values
+is smaller but not too much smaller.
+
+
+
+## Hostelling For Glucose and BMI
+
+Suppose that we’d like to test the null hypothesis that the observations come from the mean vector of the responses variables M0 = [1000,1000]
+
+Since we normalize data before we can continue our process.
+
+```{r}
+library(ICSNP)
+#assumption of this test is that the samples should follow normal distribution
+y <- data %>% select(Glucose, BMI)
+y
+mu0=c(1000,1000)
+library(MVN)
+
+#We know the assumption of this test is that the samples should follow normal distribution.
+test<-mvn(y,mvnTest = "mardia")
+test$multivariateNormality
+
+#The normality is satisfied.
+
+#Before starting the formal tests, let’s visualize our response matrix.
+library (psych)
+error.bars (y, ylab="Group Means", xlab=" Dependent Variables")
+```
+
+```{r}
+library(ICSNP)
+HotellingsT2(y,mu=log(mu0))
+```
+Since p<a we reject H0. Therefore, we don’t have enough evidence to conclude that the transformassion of the mean vector equals to log(1000,1000).
+
+
+
+```
+Research Question 2:
+Research Question: Does the classification have a significant effect on Glucose and BMI variables?
+```
+
+When we compare two independent samples in multivariate analysis.
+
+```{r}
+subset_data <-data%>%select(Glucose,BMI,Classification)
+table(subset_data$Classification)
+```
+
+Since the frequency of one gender bigger than 7, we can continue to use mvn package here. 
+
+## Normality Assumption is satisfied.
+
+```{r}
+library(rstatix)
+subset_data %>% group_by(Classification) %>% shapiro_test(Glucose,BMI)
+```
+
+We fail to reject the null hypothesis and conclude that data follows univariate normality.
+
+## Now, variance - covariance matrix assumptions
+Null hypothesis: variance-covariance matrix are equal for each combination formed by each group in the independent variable
+
+```{r}
+library(broom)
+library(heplots)
+boxM(Y = cbind(subset_data$Glucose,subset_data$BMI), group = factor(subset_data$Classification))
+```
+
+As the p-value is non-significant (p > 0.05) for Box's M test, we fail to reject the null hypothesis and conclude that variance-covariance matrices are equal for each combination of the dependent variable for.
+
+All assumptions are satisfied.
+
+After that we will conduct the hypothesis.
+
+```{r}
+HotellingsT2(cbind(subset_data$Glucose,subset_data$BMI) ~ subset_data$Classification)
+```
+
+Since p<alpha we reject to HO.
+Therefore, we have enough evidence to prove that the mean of responses change with respect to classification.
+
+## Classification/Discrimination Analysis
+
+```
+Research Question 3:
+Research Question: How accurate is the classification for detecting the disease?
+```
+
+```{r}
+set.seed(3500)
+data$Classification <- factor(data$Classification)
+##I normalize the input columns, by scaling and centering them, as follows:
+preProcess <- c("center","scale")
+
+#split the dataset into training and test set
+i <- createDataPartition(y = data$Classification, times = 1, p = 0.8, list = FALSE)
+
+training_set <- data[i,]
+test_set <- data[-i,]
+
+#set cross-validation
+trControl <- trainControl(method = "repeatedcv",number = 10,repeats = 10)
+
+#Model Training
+model <- train(Classification ~ ., method='knn', data = training_set, metric='Accuracy',preProcess = preProcess, trControl=trControl)
+
+#Model Evaluation
+test_set$pred <- predict(model, test_set)
+
+test_set$factor_pred <- as.factor(test_set$pred)
+
+test_set$factor_truth <- as.factor(test_set$Classification)
+
+precision <- posPredValue(test_set$factor_truth, test_set$factor_pred)
+precision
+
+recall <- sensitivity(test_set$factor_truth, test_set$factor_pred)
+recall
+
+cm <- confusionMatrix(test_set$pred, test_set$Classification)
+cm
+
+accuracy <- cm$overall[1]
+
+confusion_matrix <- cm$table
+
+#RocCurve
+
+library(pROC)
+test_set$pred <- predict(model, test_set,probability=TRUE)
+roc_curve = roc(test_set$Classification, predictor=factor(test_set$pred,ordered = TRUE))
+plot(roc_curve, col="red", lwd=3)
+```
